@@ -9,6 +9,12 @@ from lkml.keys import PLURAL_KEYS
 # Delimiter character used during logging to show the depth of nesting
 DELIMITER = ". "
 
+def _pair_to_field_value(pair) -> dict:
+    key, value = next(iter(pair.items()))
+    return {
+        "field": key,
+        "value": value
+    }
 
 class Parser:
     r"""Parses a sequence of tokenized LookML into a Python object.
@@ -526,10 +532,14 @@ class Parser:
             self.logger.debug("%sTry to parse %s", self.depth * DELIMITER, grammar)
         values = []
 
-        if self.check(tokens.LiteralToken, tokens.QuotedLiteralToken):
+        pair = self.parse_pair()  # Fix is here: try to parse the value as a pair
+        if pair: 
+            values.append(_pair_to_field_value(pair))
+        elif self.check(tokens.LiteralToken, tokens.QuotedLiteralToken):
             values.append(self.consume_token_value())
         else:
             return None
+        
 
         while not self.check(tokens.ListEndToken):
             if self.check(tokens.CommaToken):
@@ -537,7 +547,10 @@ class Parser:
             else:
                 return None
 
-            if self.check(tokens.LiteralToken, tokens.QuotedLiteralToken):
+            pair = self.parse_pair()  # Same fix reapplied here
+            if pair:
+                values.append(_pair_to_field_value(pair))
+            elif self.check(tokens.LiteralToken, tokens.QuotedLiteralToken):
                 values.append(self.consume_token_value())
             elif self.check(tokens.ListEndToken):
                 break
